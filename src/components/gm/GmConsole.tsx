@@ -1,0 +1,393 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { QrScanner } from "./QrScanner";
+import type { Station } from "@/lib/types";
+
+type Step = "lock" | "scan" | "team" | "treasure" | "done";
+
+interface TeamInfo {
+  id: string;
+  name: string;
+  emblem: string;
+}
+
+export function GmConsole() {
+  const router = useRouter();
+  const [stations, setStations] = useState<Station[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [step, setStep] = useState<Step>("lock");
+  const [station, setStation] = useState<Station | null>(null);
+  const [team, setTeam] = useState<TeamInfo | null>(null);
+  const [canJudge, setCanJudge] = useState(true);
+  const [reason, setReason] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [manualTeamId, setManualTeamId] = useState("");
+  const [treasureCode, setTreasureCode] = useState("");
+  const [treasureVerified, setTreasureVerified] = useState(false);
+  const [needsTreasure, setNeedsTreasure] = useState(false);
+
+  useEffect(() => {
+    const role = sessionStorage.getItem("role");
+    if (role !== "gm") {
+      router.replace("/");
+      return;
+    }
+
+    fetch("/api/bootstrap")
+      .then((res) => res.json())
+      .then((data) => setStations(data.stations ?? []))
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  async function handleLock(stationId: string) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/gm/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "鎖定失敗");
+        return;
+      }
+      setStation(data.station);
+      setStep("scan");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const runCheckIn = useCallback(
+    async (payload: { qrPayload?: string; teamId?: string }) => {
+      if (!station) return;
+      setBusy(true);
+      setMessage(null);
+      try {
+        const res = await fetch("/api/check-in", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stationId: station.id, ...payload }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setMessage(data.error ?? "掃描失敗");
+          setStep("scan");
+          return;
+        }
+
+        setTeam({
+          id: data.team.id,
+          name: data.team.name,
+          emblem: data.team.emblem,
+        });
+        setCanJudge(data.canJudge);
+        setReason(data.reason ?? null);
+        setNeedsTreasure(Boolean(data.requiresTreasureCode));
+        setTreasureVerified(false);
+        setTreasureCode("");
+        setStep("team");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [station],
+  );
+
+  const onScan = useCallback(
+    (text: string) => {
+      void runCheckIn({ qrPayload: text });
+    },
+    [runCheckIn],
+  );
+
+  async function verifyTreasure() {
+    if (!station) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/treasure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stationId: station.id, code: treasureCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "驗證失敗");
+        return;
+      }
+      setTreasureVerified(true);
+      setStep("team");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submit(status: "pass" | "fail") {
+    if (!team || !station) return;
+
+    if (needsTreasure && status === "pass" && !treasureVerified) {
+      setStep("treasure");
+      return;
+    }
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId: team.id,
+          stationId: station.id,
+          status,
+          treasureCode: treasureVerified ? treasureCode : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "送出失敗");
+        return;
+      }
+      setMessage(status === "pass" ? "已登錄：通過" : "已登錄：不通過");
+      setStep("done");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function resetToScan() {
+    setTeam(null);
+    setCanJudge(true);
+    setReason(null);
+    setMessage(null);
+    setManualTeamId("");
+    setTreasureCode("");
+    setTreasureVerified(false);
+    setNeedsTreasure(false);
+    setStep("scan");
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-[#0a1931] text-[#9bb6d4]">
+        載入中…
+      </div>
+    );
+  }
+
+  return (
+    <div className="gm-screen mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 py-6">
+      <header className="mb-6 text-center">
+        <div className="mb-3 flex justify-start">
+          <Link
+            href="/"
+            onClick={() => sessionStorage.removeItem("role")}
+            className="text-sm text-[#9bb6d4]"
+          >
+            ← 返回選擇身分
+          </Link>
+        </div>
+        <p className="text-xs tracking-[0.3em] text-[#9bb6d4]">任務完成判定</p>
+        <h1 className="mt-2 font-display text-3xl font-bold text-[#f0c674]">關主畫面</h1>
+        {station && (
+          <p className="mt-2 text-sm text-[#d7e6f7]">
+            已鎖定：第{station.order}關_{station.name}
+          </p>
+        )}
+      </header>
+
+      {step === "lock" && (
+        <section className="flex flex-1 flex-col gap-3">
+          <div className="mb-2 rounded-2xl border border-[#f0c674]/35 bg-[#0d2244]/70 p-4">
+            <p className="text-sm leading-relaxed text-[#d7e6f7]">
+              關主先鎖定當前關卡 stationId，再掃描小隊 QR。
+            </p>
+          </div>
+          {stations.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              disabled={busy}
+              onClick={() => void handleLock(s.id)}
+              className="rounded-xl border border-[#f0c674]/55 bg-[#0d2244]/80 px-4 py-3.5 text-left transition hover:border-[#f0c674] hover:bg-[#12315a] disabled:opacity-50"
+            >
+              <span className="text-[#f0c674]">第{s.order}關</span>
+              <span className="mt-0.5 block text-sm text-[#d7e6f7]">{s.name}</span>
+            </button>
+          ))}
+          </section>
+      )}
+
+      {step === "scan" && station && (
+        <section className="flex flex-1 flex-col gap-4">
+          <div className="rounded-2xl border border-[#f0c674]/35 bg-[#0d2244]/70 p-4 text-center">
+            <p className="text-sm text-[#d7e6f7]">
+              小隊完成任務後，關主掃描小隊 QR
+            </p>
+          </div>
+          <QrScanner key={`scan-${station.id}`} onScan={onScan} />
+          {message && <p className="text-center text-sm text-[#ffb4b4]">{message}</p>}
+
+          <div className="rounded-2xl border border-[#f0c674]/30 bg-[#0d2244]/60 p-4">
+            <p className="mb-2 text-xs text-[#9bb6d4]">無法掃描時可手動輸入小隊 ID</p>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 rounded-xl border border-[#f0c674]/40 bg-[#071428] px-3 py-2.5 text-sm text-white"
+                placeholder="例如 team-01"
+                value={manualTeamId}
+                onChange={(e) => setManualTeamId(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={busy || !manualTeamId}
+                onClick={() => void runCheckIn({ teamId: manualTeamId.trim() })}
+                className="rounded-xl border border-[#f0c674] px-3 py-2 text-sm text-[#f0c674] disabled:opacity-50"
+              >
+                確認
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStation(null);
+              setStep("lock");
+            }}
+            className="rounded-xl border border-[#f0c674]/40 px-4 py-3 text-[#d7e6f7]"
+          >
+            重新選擇關卡
+          </button>
+        </section>
+      )}
+
+      {step === "treasure" && (
+        <section className="flex flex-1 flex-col gap-4">
+          <div className="rounded-2xl border border-[#f0c674]/45 bg-[#0d2244]/80 p-5">
+            <h2 className="text-xl font-semibold text-[#f0c674]">驗證寶物 Code</h2>
+            <p className="mt-2 text-sm text-[#d7e6f7]">
+              第三關可先驗證寶物 Code，再登錄小隊完成。示範：BEAR2026
+            </p>
+            <input
+              className="mt-4 w-full rounded-xl border border-[#f0c674]/40 bg-[#071428] px-3 py-3 tracking-[0.2em] text-white"
+              value={treasureCode}
+              onChange={(e) => setTreasureCode(e.target.value)}
+              placeholder="輸入寶物 Code"
+            />
+            {message && <p className="mt-2 text-sm text-[#ffb4b4]">{message}</p>}
+          </div>
+          <button
+            type="button"
+            disabled={busy || !treasureCode}
+            onClick={() => void verifyTreasure()}
+            className="rounded-xl bg-[#f0c674] px-4 py-3 font-semibold text-[#1a1205] disabled:opacity-50"
+          >
+            驗證後繼續判定
+          </button>
+          <button
+            type="button"
+            onClick={() => setStep("team")}
+            className="rounded-xl border border-[#f0c674]/40 px-4 py-3 text-[#d7e6f7]"
+          >
+            返回
+          </button>
+        </section>
+      )}
+
+      {step === "team" && team && station && (
+        <section className="flex flex-1 flex-col gap-4">
+          <div className="rounded-2xl border border-[#f0c674]/50 bg-[#0d2244]/85 p-6 text-center">
+            <p className="text-xs tracking-[0.25em] text-[#9bb6d4]">小隊專屬頁面</p>
+            <h2 className="mt-3 text-3xl font-bold text-[#f0c674]">
+              {team.emblem}・{team.name}
+            </h2>
+            <p className="mt-3 text-sm text-[#d7e6f7]">
+              第{station.order}關_{station.name}
+            </p>
+            {!canJudge && (
+              <p className="mt-4 rounded-xl border border-[#f0c674]/40 bg-[#f0c674]/10 px-3 py-2 text-sm text-[#ffe7a8]">
+                {reason ?? "已完成，不重複計算"}
+              </p>
+            )}
+            {canJudge && needsTreasure && !treasureVerified && (
+              <p className="mt-3 text-xs text-[#9bb6d4]">
+                若判定「通過」，需先驗證寶物 Code
+              </p>
+            )}
+            {treasureVerified && (
+              <p className="mt-3 text-xs text-[#a8e0b0]">寶物 Code 已驗證</p>
+            )}
+          </div>
+
+          {canJudge ? (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void submit("fail")}
+                className="rounded-xl border border-[#f0c674]/55 bg-[#2a1520] px-4 py-4 text-lg font-semibold text-[#ffb4b4] disabled:opacity-50"
+              >
+                不通過
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void submit("pass")}
+                className="rounded-xl bg-[#f0c674] px-4 py-4 text-lg font-semibold text-[#1a1205] disabled:opacity-50"
+              >
+                通過
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={resetToScan}
+              className="rounded-xl bg-[#f0c674] px-4 py-3.5 font-semibold text-[#1a1205]"
+            >
+              掃描下一隊
+            </button>
+          )}
+
+          {message && <p className="text-center text-sm text-[#ffb4b4]">{message}</p>}
+
+          <button
+            type="button"
+            onClick={resetToScan}
+            className="rounded-xl border border-[#f0c674]/35 px-4 py-3 text-[#d7e6f7]"
+          >
+            取消，重新掃描
+          </button>
+        </section>
+      )}
+
+      {step === "done" && (
+        <section className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+          <div className="w-full rounded-2xl border border-[#f0c674]/45 bg-[#0d2244]/85 px-6 py-8">
+            <h2 className="text-2xl font-semibold text-[#f0c674]">判定完成</h2>
+            <p className="mt-3 text-sm text-[#d7e6f7]">{message}</p>
+            <p className="mt-2 text-sm text-[#9bb6d4]">
+              {team?.name}｜第{station?.order}關
+            </p>
+            <p className="mt-4 text-xs leading-relaxed text-[#9bb6d4]">
+              未完成過：新增紀錄，翻開卡片，點亮拼圖
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={resetToScan}
+            className="w-full rounded-xl bg-[#f0c674] px-4 py-3.5 font-semibold text-[#1a1205]"
+          >
+            掃描下一隊
+          </button>
+        </section>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a1931;
+  --foreground: #ffffff;
+  --gold: #f0c674;
+  --navy: #0a1931;
+  --accent-cyan: #5bc0de;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-noto);
+  --font-display: var(--font-display);
+}
+
+body {
+  background: #0a1931;
+  color: var(--foreground);
+  font-family: var(--font-noto), "Noto Sans TC", sans-serif;
+  min-height: 100dvh;
+}
+
+.team-screen,
+.gm-screen,
+.home-screen {
+  background: #0a1931;
+  min-height: 100dvh;
+}
+
+.station-card {
+  animation: card-in 0.4s ease both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#gm-qr-reader video {
+  border-radius: 1rem;
+}
+
+.font-display {
+  font-family: var(--font-display), var(--font-noto), sans-serif;
+}
