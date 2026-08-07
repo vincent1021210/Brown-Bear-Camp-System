@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { QrScanner } from "./QrScanner";
 import {
   checkInTeam,
@@ -22,8 +21,14 @@ interface TeamInfo {
   emblem: string;
 }
 
+const GM_PASSWORD = "@abc12345";
+const GM_UNLOCK_KEY = "gmUnlocked";
+
 export function GmConsole() {
-  const router = useRouter();
+  const [unlocked, setUnlocked] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>("lock");
@@ -39,16 +44,45 @@ export function GmConsole() {
   const [needsTreasure, setNeedsTreasure] = useState(false);
 
   useEffect(() => {
-    const role = sessionStorage.getItem("role");
-    if (role !== "gm") {
-      router.replace("/");
+    const ok = sessionStorage.getItem(GM_UNLOCK_KEY) === "1";
+    if (ok) {
+      sessionStorage.setItem("role", "gm");
+      setUnlocked(true);
+    } else {
+      sessionStorage.removeItem("role");
+    }
+    setAuthReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!unlocked) {
+      setLoading(false);
       return;
     }
 
+    setLoading(true);
     void listBootstrap()
       .then((data) => setStations(data.stations ?? []))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [unlocked]);
+
+  function submitPassword(event: FormEvent) {
+    event.preventDefault();
+    if (password !== GM_PASSWORD) {
+      setPasswordError("密碼錯誤，請再試一次");
+      return;
+    }
+    sessionStorage.setItem(GM_UNLOCK_KEY, "1");
+    sessionStorage.setItem("role", "gm");
+    setPassword("");
+    setPasswordError("");
+    setUnlocked(true);
+  }
+
+  function clearGmSession() {
+    sessionStorage.removeItem("role");
+    sessionStorage.removeItem(GM_UNLOCK_KEY);
+  }
 
   async function handleLock(stationId: string) {
     setBusy(true);
@@ -179,6 +213,64 @@ export function GmConsole() {
     setStep("scan");
   }
 
+  if (!authReady) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-[#0a1931] text-[#9bb6d4]">
+        載入中…
+      </div>
+    );
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="gm-screen mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 py-6">
+        <header className="mb-6 text-center">
+          <div className="mb-3 flex justify-start">
+            <Link href="/" className="text-sm text-[#9bb6d4]">
+              ← 返回選擇身分
+            </Link>
+          </div>
+          <p className="text-xs tracking-[0.3em] text-[#9bb6d4]">GAME MASTER</p>
+          <h1 className="mt-2 font-display text-3xl font-bold text-[#f0c674]">關主密碼</h1>
+          <p className="mt-2 text-sm text-[#9bb6d4]">請輸入密碼後進入關主畫面</p>
+        </header>
+
+        <form
+          onSubmit={submitPassword}
+          className="rounded-3xl border-2 border-[#f0c674]/70 bg-[#0d2244]/90 p-6"
+        >
+          <label htmlFor="gm-console-password" className="block text-sm text-[#b8cce0]">
+            密碼
+          </label>
+          <input
+            id="gm-console-password"
+            type="password"
+            autoFocus
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (passwordError) setPasswordError("");
+            }}
+            className="mt-2 w-full rounded-xl border border-[#f0c674]/40 bg-[#071428] px-4 py-3 text-base text-white outline-none ring-[#f0c674] placeholder:text-[#6f87a3] focus:border-[#f0c674] focus:ring-1"
+            placeholder="請輸入關主密碼"
+          />
+          {passwordError && (
+            <p className="mt-3 text-sm text-[#ff8f8f]" role="alert">
+              {passwordError}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="mt-5 w-full rounded-2xl bg-[#f0c674] px-4 py-3 text-base font-semibold text-[#0a1931] transition hover:bg-[#f6d48a] active:scale-[0.99]"
+          >
+            進入關主畫面
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#0a1931] text-[#9bb6d4]">
@@ -193,7 +285,7 @@ export function GmConsole() {
         <div className="mb-3 flex justify-start">
           <Link
             href="/"
-            onClick={() => sessionStorage.removeItem("role")}
+            onClick={clearGmSession}
             className="text-sm text-[#9bb6d4]"
           >
             ← 返回選擇身分
