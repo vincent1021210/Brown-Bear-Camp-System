@@ -1,17 +1,10 @@
 # 棕熊營系統
 
-學員闖關進度＋關主掃碼判定。資料庫使用 **Google Apps Script + Spreadsheet**。
+線上版：https://vincent1021210.github.io/Brown-Bear-Camp-System/
 
-## 啟動
+學員闖關進度＋關主掃碼判定。
 
-1. 部署 Apps Script（見 [`google-apps-script/README.md`](./google-apps-script/README.md)）
-2. 建立 `.env.local`：
-
-```env
-GAS_WEB_APP_URL=https://script.google.com/macros/s/XXXX/exec
-```
-
-3. 執行：
+## 本機開發
 
 ```bash
 npm install
@@ -20,26 +13,14 @@ npm run dev
 
 開啟 http://localhost:3000
 
-## 流程
+## GitHub Pages
 
-### 選擇身分
+推送到 `main` 後，GitHub Actions 會自動建置並部署到 Pages。
 
-- **學員**：選小隊 → 進度頁（全暗顯示「不通過」）＋專屬 QR
-- **關主**：鎖定關卡 → 掃描 QR → 通過／不通過
+可選：在 repo Secrets 設定 `GAS_WEB_APP_URL`，進度會同步到 Google 試算表；未設定時使用瀏覽器本機儲存。
 
-### 關卡
+## Apps Script（可選）
 
-1. 龍門營地跳塔  
-2. 血跡尋寶  
-3. 創意鑰匙圈手作（通過前可驗證寶物 Code：`BEAR2026`）  
-4. 神力布袋球積分賽  
-5. 植物書籤  
-6. 蒙眼漫步  
-7. 捲捲棒棒糖  
-8. 快問快答  
+見 [`google-apps-script/README.md`](./google-apps-script/README.md)
 
-唯一鍵：`eventId + teamId + stationId`（已通過不重複計算）
-
-## Apps Script 專案
-
-https://script.google.com/home/projects/1cAMdi5hwkMLA5dKGdVR4wtya5mvelCQ1CuU5YKKSDBvMrY4PBHZgasNs/edit
+專案：https://script.google.com/home/projects/1cAMdi5hwkMLA5dKGdVR4wtya5mvelCQ1CuU5YKKSDBvMrY4PBHZgasNs/edit

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { listBootstrap } from "@/lib/client-db";
 
 interface TeamItem {
   id: string;
@@ -18,8 +19,7 @@ export default function HomePage() {
   const [eventName, setEventName] = useState("棕熊營闖關活動");
 
   useEffect(() => {
-    fetch("/api/bootstrap")
-      .then((res) => res.json())
+    void listBootstrap()
       .then((data) => {
         setTeams(data.teams ?? []);
         if (data.event?.name) setEventName(data.event.name);
@@ -28,16 +28,12 @@ export default function HomePage() {
   }, []);
 
   function chooseStudent() {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("role", "student");
-    }
+    sessionStorage.setItem("role", "student");
     setStep("pick-team");
   }
 
   function chooseGm() {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("role", "gm");
-    }
+    sessionStorage.setItem("role", "gm");
     router.push("/gm");
   }
 

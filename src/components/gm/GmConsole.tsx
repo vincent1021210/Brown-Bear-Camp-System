@@ -4,6 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QrScanner } from "./QrScanner";
+import {
+  checkInTeam,
+  listBootstrap,
+  lockStation,
+  parseTeamQr,
+  recordAttempt,
+  verifyTreasureCode,
+} from "@/lib/client-db";
 import type { Station } from "@/lib/types";
 
 type Step = "lock" | "scan" | "team" | "treasure" | "done";
@@ -37,8 +45,7 @@ export function GmConsole() {
       return;
     }
 
-    fetch("/api/bootstrap")
-      .then((res) => res.json())
+    void listBootstrap()
       .then((data) => setStations(data.stations ?? []))
       .finally(() => setLoading(false));
   }, [router]);
@@ -47,14 +54,9 @@ export function GmConsole() {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/gm/lock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stationId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error ?? "鎖定失敗");
+      const data = await lockStation(stationId);
+      if (!data.ok || !data.station) {
+        setMessage(data.reason ?? "鎖定失敗");
         return;
       }
       setStation(data.station);
@@ -70,14 +72,24 @@ export function GmConsole() {
       setBusy(true);
       setMessage(null);
       try {
-        const res = await fetch("/api/check-in", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stationId: station.id, ...payload }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setMessage(data.error ?? "掃描失敗");
+        let teamId = payload.teamId;
+        if (!teamId && payload.qrPayload) {
+          const parsed = parseTeamQr(payload.qrPayload);
+          if (!parsed) {
+            setMessage("無法辨識小隊 QR");
+            setStep("scan");
+            return;
+          }
+          teamId = parsed.teamId;
+        }
+        if (!teamId) {
+          setMessage("缺少小隊資訊");
+          return;
+        }
+
+        const data = await checkInTeam({ teamId, stationId: station.id });
+        if (!data.ok) {
+          setMessage(data.reason ?? "掃描失敗");
           setStep("scan");
           return;
         }
@@ -112,14 +124,12 @@ export function GmConsole() {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/treasure", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stationId: station.id, code: treasureCode }),
+      const data = await verifyTreasureCode({
+        stationId: station.id,
+        code: treasureCode,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error ?? "驗證失敗");
+      if (!data.ok) {
+        setMessage(data.reason ?? "驗證失敗");
         return;
       }
       setTreasureVerified(true);
@@ -140,19 +150,14 @@ export function GmConsole() {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId: team.id,
-          stationId: station.id,
-          status,
-          treasureCode: treasureVerified ? treasureCode : undefined,
-        }),
+      const data = await recordAttempt({
+        teamId: team.id,
+        stationId: station.id,
+        status,
+        treasureCode: treasureVerified ? treasureCode : undefined,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error ?? "送出失敗");
+      if (!data.ok) {
+        setMessage(data.reason ?? "送出失敗");
         return;
       }
       setMessage(status === "pass" ? "已登錄：通過" : "已登錄：不通過");

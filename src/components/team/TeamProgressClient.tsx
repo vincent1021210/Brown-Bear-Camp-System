@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TeamScreen } from "@/components/team/TeamScreen";
+import { getTeamProgress } from "@/lib/client-db";
 import type { StationPlayState, TeamQrPayload } from "@/lib/types";
 
 interface TeamPageData {
@@ -44,15 +45,18 @@ export function TeamProgressClient({ teamId }: { teamId: string }) {
     let cancelled = false;
 
     async function load() {
-      const res = await fetch(`/api/teams/${teamId}`);
-      const json = await res.json();
-      if (cancelled) return;
-      if (!res.ok) {
-        setError(json.error ?? "載入失敗");
-        return;
+      try {
+        const json = await getTeamProgress(teamId);
+        if (cancelled) return;
+        if (!json) {
+          setError("找不到小隊");
+          return;
+        }
+        setData(json);
+        setError(null);
+      } catch {
+        if (!cancelled) setError("載入失敗");
       }
-      setData(json);
-      setError(null);
     }
 
     void load();

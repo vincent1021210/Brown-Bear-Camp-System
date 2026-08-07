@@ -46,30 +46,33 @@ function handleRequest(e, method) {
     }
 
     var action = body.action || params.action || '';
+    var teamId = body.teamId || params.teamId;
+    var stationId = body.stationId || params.stationId;
+    var status = body.status || params.status;
+    var code = body.code || params.code || '';
+    var treasureCode = body.treasureCode || params.treasureCode || '';
 
-    if (method === 'GET' && action === 'bootstrap') {
+    if (action === 'bootstrap') {
       return json_(listBootstrap_());
     }
-    if (method === 'GET' && action === 'team') {
-      var teamId = params.teamId || body.teamId;
+    if (action === 'team') {
       var progress = getTeamProgress_(teamId);
       if (!progress) return json_({ error: '找不到小隊' }, 404);
       return json_(progress);
     }
-
-    if (method === 'POST' && action === 'lock') {
-      return json_(lockStation_(body.stationId));
+    if (action === 'lock') {
+      return json_(lockStation_(stationId));
     }
-    if (method === 'POST' && action === 'checkIn') {
-      return json_(checkInTeam_(body.teamId, body.stationId));
+    if (action === 'checkIn') {
+      return json_(checkInTeam_(teamId, stationId));
     }
-    if (method === 'POST' && action === 'treasure') {
-      return json_(verifyTreasureCode_(body.stationId, body.code || ''));
+    if (action === 'treasure') {
+      return json_(verifyTreasureCode_(stationId, code));
     }
-    if (method === 'POST' && action === 'complete') {
-      return json_(recordAttempt_(body.teamId, body.stationId, body.status, body.treasureCode));
+    if (action === 'complete') {
+      return json_(recordAttempt_(teamId, stationId, status, treasureCode));
     }
-    if (method === 'POST' && action === 'reset') {
+    if (action === 'reset') {
       return json_(resetDb_());
     }
 
