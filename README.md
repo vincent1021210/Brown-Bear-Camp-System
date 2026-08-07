@@ -1,10 +1,20 @@
 # 棕熊營系統
 
-學員闖關進度＋關主掃碼判定。風格：深藍底＋金色。
+學員闖關進度＋關主掃碼判定。資料庫使用 **Google Apps Script + Spreadsheet**。
 
 ## 啟動
 
+1. 部署 Apps Script（見 [`google-apps-script/README.md`](./google-apps-script/README.md)）
+2. 建立 `.env.local`：
+
+```env
+GAS_WEB_APP_URL=https://script.google.com/macros/s/XXXX/exec
+```
+
+3. 執行：
+
 ```bash
+npm install
 npm run dev
 ```
 
@@ -12,35 +22,24 @@ npm run dev
 
 ## 流程
 
-### 1. 選擇身分
+### 選擇身分
 
-- **學員**：選小隊 → 進度頁
-- **關主**：鎖定關卡 → 掃描 QR → 判定
+- **學員**：選小隊 → 進度頁（全暗顯示「不通過」）＋專屬 QR
+- **關主**：鎖定關卡 → 掃描 QR → 通過／不通過
 
-### 2. 學員畫面
-
-- 8 關一開始全暗
-- 關主按「通過」：該格亮起並顯示「通過」
-- 關主按「不通過」：該格亮起並顯示「不通過」
-- 顯示小隊專屬 QR Code
-
-關卡：
+### 關卡
 
 1. 龍門營地跳塔  
 2. 血跡尋寶  
-3. 創意鑰匙圈手作  
+3. 創意鑰匙圈手作（通過前可驗證寶物 Code：`BEAR2026`）  
 4. 神力布袋球積分賽  
 5. 植物書籤  
 6. 蒙眼漫步  
 7. 捲捲棒棒糖  
 8. 快問快答  
 
-### 3. 關主畫面
+唯一鍵：`eventId + teamId + stationId`（已通過不重複計算）
 
-1. 鎖定當前關卡 `stationId`
-2. 掃描小隊 QR → 進入小隊專屬頁面
-3. 選擇「通過」或「不通過」
-4. 已通過的關卡會顯示「已完成，不重複計算」
-5. 第三關通過前可先驗證寶物 Code（示範：`BEAR2026`）
+## Apps Script 專案
 
-唯一鍵：`eventId + teamId + stationId`
+https://script.google.com/home/projects/1cAMdi5hwkMLA5dKGdVR4wtya5mvelCQ1CuU5YKKSDBvMrY4PBHZgasNs/edit
