@@ -9,11 +9,10 @@ import {
   lockStation,
   parseTeamQr,
   recordAttempt,
-  verifyTreasureCode,
 } from "@/lib/client-db";
 import type { Station } from "@/lib/types";
 
-type Step = "lock" | "scan" | "team" | "treasure" | "done";
+type Step = "lock" | "scan" | "team" | "done";
 
 interface TeamInfo {
   id: string;
@@ -39,9 +38,6 @@ export function GmConsole() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [manualTeamId, setManualTeamId] = useState("");
-  const [treasureCode, setTreasureCode] = useState("");
-  const [treasureVerified, setTreasureVerified] = useState(false);
-  const [needsTreasure, setNeedsTreasure] = useState(false);
 
   useEffect(() => {
     const ok = sessionStorage.getItem(GM_UNLOCK_KEY) === "1";
@@ -135,9 +131,6 @@ export function GmConsole() {
         });
         setCanJudge(data.canJudge);
         setReason(data.reason ?? null);
-        setNeedsTreasure(Boolean(data.requiresTreasureCode));
-        setTreasureVerified(false);
-        setTreasureCode("");
         setStep("team");
       } finally {
         setBusy(false);
@@ -153,33 +146,8 @@ export function GmConsole() {
     [runCheckIn],
   );
 
-  async function verifyTreasure() {
-    if (!station) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const data = await verifyTreasureCode({
-        stationId: station.id,
-        code: treasureCode,
-      });
-      if (!data.ok) {
-        setMessage(data.reason ?? "驗證失敗");
-        return;
-      }
-      setTreasureVerified(true);
-      setStep("team");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function submit(status: "pass" | "fail") {
     if (!team || !station) return;
-
-    if (needsTreasure && status === "pass" && !treasureVerified) {
-      setStep("treasure");
-      return;
-    }
 
     setBusy(true);
     setMessage(null);
@@ -188,7 +156,6 @@ export function GmConsole() {
         teamId: team.id,
         stationId: station.id,
         status,
-        treasureCode: treasureVerified ? treasureCode : undefined,
       });
       if (!data.ok) {
         setMessage(data.reason ?? "送出失敗");
@@ -207,9 +174,6 @@ export function GmConsole() {
     setReason(null);
     setMessage(null);
     setManualTeamId("");
-    setTreasureCode("");
-    setTreasureVerified(false);
-    setNeedsTreasure(false);
     setStep("scan");
   }
 
@@ -291,22 +255,31 @@ export function GmConsole() {
             ← 返回選擇身分
           </Link>
         </div>
-        <p className="text-xs tracking-[0.3em] text-[#9bb6d4]">任務完成判定</p>
+        <p className="text-xs tracking-[0.3em] text-[#9bb6d4]">任務完成判定・雨備</p>
         <h1 className="mt-2 font-display text-3xl font-bold text-[#f0c674]">關主畫面</h1>
         {station && (
           <p className="mt-2 text-sm text-[#d7e6f7]">
-            已鎖定：第{station.order}關_{station.name}
+            已鎖定：第{station.order}關_{station.shortName || station.name}
           </p>
         )}
       </header>
 
       {step === "lock" && (
         <section className="flex flex-1 flex-col gap-3">
-          <div className="mb-2 rounded-2xl border border-[#f0c674]/35 bg-[#0d2244]/70 p-4">
-            <p className="text-sm leading-relaxed text-[#d7e6f7]">
-              關主先鎖定當前關卡 stationId，再掃描小隊 QR。
-            </p>
-          </div>
+          <ul className="mb-2 space-y-2 rounded-2xl border border-[#f0c674]/35 bg-[#0d2244]/70 p-4 text-sm leading-relaxed text-[#d7e6f7]">
+            <li className="flex gap-2">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#f0c674]" />
+              關主先鎖定當前關卡 stationId。
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#f0c674]" />
+              小隊完成任務後，關主掃描小隊 QR。
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#f0c674]" />
+              系統以 eventId + teamId + stationId 判斷唯一完成紀錄。
+            </li>
+          </ul>
           {stations.map((s) => (
             <button
               key={s.id}
@@ -319,15 +292,14 @@ export function GmConsole() {
               <span className="mt-0.5 block text-sm text-[#d7e6f7]">{s.name}</span>
             </button>
           ))}
-          </section>
+          {message && <p className="text-center text-sm text-[#ffb4b4]">{message}</p>}
+        </section>
       )}
 
       {step === "scan" && station && (
         <section className="flex flex-1 flex-col gap-4">
           <div className="rounded-2xl border border-[#f0c674]/35 bg-[#0d2244]/70 p-4 text-center">
-            <p className="text-sm text-[#d7e6f7]">
-              小隊完成任務後，關主掃描小隊 QR
-            </p>
+            <p className="text-sm text-[#d7e6f7]">掃描小隊 QR Code 後進入小隊專屬頁面</p>
           </div>
           <QrScanner key={`scan-${station.id}`} onScan={onScan} />
           {message && <p className="text-center text-sm text-[#ffb4b4]">{message}</p>}
@@ -365,39 +337,6 @@ export function GmConsole() {
         </section>
       )}
 
-      {step === "treasure" && (
-        <section className="flex flex-1 flex-col gap-4">
-          <div className="rounded-2xl border border-[#f0c674]/45 bg-[#0d2244]/80 p-5">
-            <h2 className="text-xl font-semibold text-[#f0c674]">驗證寶物 Code</h2>
-            <p className="mt-2 text-sm text-[#d7e6f7]">
-              第三關可先驗證寶物 Code，再登錄小隊完成。示範：BEAR2026
-            </p>
-            <input
-              className="mt-4 w-full rounded-xl border border-[#f0c674]/40 bg-[#071428] px-3 py-3 tracking-[0.2em] text-white"
-              value={treasureCode}
-              onChange={(e) => setTreasureCode(e.target.value)}
-              placeholder="輸入寶物 Code"
-            />
-            {message && <p className="mt-2 text-sm text-[#ffb4b4]">{message}</p>}
-          </div>
-          <button
-            type="button"
-            disabled={busy || !treasureCode}
-            onClick={() => void verifyTreasure()}
-            className="rounded-xl bg-[#f0c674] px-4 py-3 font-semibold text-[#1a1205] disabled:opacity-50"
-          >
-            驗證後繼續判定
-          </button>
-          <button
-            type="button"
-            onClick={() => setStep("team")}
-            className="rounded-xl border border-[#f0c674]/40 px-4 py-3 text-[#d7e6f7]"
-          >
-            返回
-          </button>
-        </section>
-      )}
-
       {step === "team" && team && station && (
         <section className="flex flex-1 flex-col gap-4">
           <div className="rounded-2xl border border-[#f0c674]/50 bg-[#0d2244]/85 p-6 text-center">
@@ -406,20 +345,12 @@ export function GmConsole() {
               {team.emblem}・{team.name}
             </h2>
             <p className="mt-3 text-sm text-[#d7e6f7]">
-              第{station.order}關_{station.name}
+              第{station.order}關_{station.shortName || station.name}
             </p>
             {!canJudge && (
               <p className="mt-4 rounded-xl border border-[#f0c674]/40 bg-[#f0c674]/10 px-3 py-2 text-sm text-[#ffe7a8]">
                 {reason ?? "已完成，不重複計算"}
               </p>
-            )}
-            {canJudge && needsTreasure && !treasureVerified && (
-              <p className="mt-3 text-xs text-[#9bb6d4]">
-                若判定「通過」，需先驗證寶物 Code
-              </p>
-            )}
-            {treasureVerified && (
-              <p className="mt-3 text-xs text-[#a8e0b0]">寶物 Code 已驗證</p>
             )}
           </div>
 
@@ -472,9 +403,16 @@ export function GmConsole() {
             <p className="mt-2 text-sm text-[#9bb6d4]">
               {team?.name}｜第{station?.order}關
             </p>
-            <p className="mt-4 text-xs leading-relaxed text-[#9bb6d4]">
-              未完成過：新增紀錄，翻開卡片，點亮拼圖
-            </p>
+            <ul className="mt-5 space-y-2 text-left text-xs leading-relaxed text-[#9bb6d4]">
+              <li className="flex gap-2">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#f0c674]" />
+                未完成過：新增紀錄，點亮關卡格
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#f0c674]" />
+                已完成過：顯示「已完成，不重複計算」
+              </li>
+            </ul>
           </div>
           <button
             type="button"

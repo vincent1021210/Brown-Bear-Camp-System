@@ -12,18 +12,17 @@ interface StationCardProps {
 function StationCard({ order, name, state }: StationCardProps) {
   const isDark = state === "pending";
   const isPass = state === "pass";
-  // pending / fail 都顯示「不通過」；通過才顯示「通過」
-  const statusLabel = isPass ? "通過" : "不通過";
+  const isFail = state === "fail";
 
   return (
     <div
       className={[
-        "station-card relative flex aspect-[3/4] flex-col items-center justify-between rounded-[14px] border px-1 py-2.5 transition-all duration-500",
+        "station-card relative flex aspect-[3/4] flex-col items-center justify-between rounded-[14px] border px-1.5 py-2.5 transition-all duration-500",
         isDark
-          ? "border-[#c4a574]/45 bg-transparent"
+          ? "border-[#c4a574]/35 bg-transparent opacity-55"
           : isPass
             ? "border-[#f0c674] bg-[#f0c674]/18 shadow-[0_0_18px_rgba(240,198,116,0.65),0_0_4px_rgba(240,198,116,0.9)]"
-            : "border-[#f0c674] bg-[#f0c674]/14 shadow-[0_0_14px_rgba(240,198,116,0.45)]",
+            : "border-[#f0c674]/85 bg-[#f0c674]/12 shadow-[0_0_14px_rgba(240,198,116,0.4)]",
       ].join(" ")}
     >
       <span
@@ -46,15 +45,16 @@ function StationCard({ order, name, state }: StationCardProps) {
 
       <span
         className={[
-          "text-[12px] font-bold tracking-wide",
+          "min-h-[1.1rem] text-[12px] font-bold tracking-wide",
           isDark
-            ? "text-[#c4a574]/45"
+            ? "text-transparent"
             : isPass
               ? "text-[#f0c674]"
               : "text-[#ffb4b4]",
         ].join(" ")}
+        aria-hidden={isDark}
       >
-        {statusLabel}
+        {isPass ? "通過" : isFail ? "不通過" : "·"}
       </span>
     </div>
   );
@@ -67,6 +67,7 @@ interface TeamScreenProps {
     stationId: string;
     order: number;
     name: string;
+    shortName?: string;
     state: StationPlayState;
   }>;
   passCount: number;
@@ -80,21 +81,23 @@ export function TeamScreen({
   passCount,
   totalStations,
 }: TeamScreenProps) {
+  const cols = progress.length <= 6 ? "grid-cols-3" : "grid-cols-4";
+
   return (
     <div className="team-screen mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-12">
       <header className="mb-6 text-center">
-        <p className="text-xs tracking-[0.25em] text-[#9bb6d4]">{teamName}</p>
+        <p className="text-xs tracking-[0.25em] text-[#9bb6d4]">{teamName}・雨備</p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-wide text-[#f0c674]">
           你的闖關進度
         </h1>
       </header>
 
-      <section className="grid grid-cols-4 gap-2.5">
+      <section className={`grid ${cols} gap-2.5`}>
         {progress.map((item) => (
           <StationCard
             key={item.stationId}
             order={item.order}
-            name={item.name}
+            name={item.shortName || item.name}
             state={item.state}
           />
         ))}
@@ -104,7 +107,7 @@ export function TeamScreen({
         <p className="mb-4 text-center text-sm font-medium text-[#f0c674]">
           掃描小隊 QR Code 開始闖關！
         </p>
-        <div className="rounded-xl bg-white p-3">
+        <div className="rounded-xl bg-white p-3 shadow-[0_0_24px_rgba(240,198,116,0.15)]">
           <QRCodeSVG
             value={JSON.stringify(qrPayload)}
             size={210}

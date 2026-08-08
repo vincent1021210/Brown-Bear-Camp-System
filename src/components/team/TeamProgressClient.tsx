@@ -18,6 +18,7 @@ interface TeamPageData {
     stationId: string;
     order: number;
     name: string;
+    shortName?: string;
     state: StationPlayState;
   }>;
   passCount: number;

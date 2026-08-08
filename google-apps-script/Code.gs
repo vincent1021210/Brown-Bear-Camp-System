@@ -8,18 +8,16 @@
  */
 
 var EVENT_ID = 'event-brown-bear-2026';
-var EVENT_NAME = '棕熊營闖關活動';
-var TREASURE_CODE = 'BEAR2026';
+var EVENT_NAME = '棕熊營闖關活動（雨備）';
 
+/** 雨備關卡 */
 var STATIONS = [
-  { id: 'station-1', order: 1, name: '龍門營地跳塔', shortName: '跳塔', requiresTreasureCode: false },
-  { id: 'station-2', order: 2, name: '血跡尋寶', shortName: '尋寶', requiresTreasureCode: false },
-  { id: 'station-3', order: 3, name: '創意鑰匙圈手作', shortName: '鑰匙圈', requiresTreasureCode: true, treasureCode: TREASURE_CODE },
-  { id: 'station-4', order: 4, name: '神力布袋球積分賽', shortName: '布袋球', requiresTreasureCode: false },
-  { id: 'station-5', order: 5, name: '植物書籤', shortName: '書籤', requiresTreasureCode: false },
-  { id: 'station-6', order: 6, name: '蒙眼漫步', shortName: '漫步', requiresTreasureCode: false },
-  { id: 'station-7', order: 7, name: '捲捲棒棒糖', shortName: '棒棒糖', requiresTreasureCode: false },
-  { id: 'station-8', order: 8, name: '快問快答', shortName: '快問快答', requiresTreasureCode: false }
+  { id: 'station-1', order: 1, name: 'SDGs大富翁（秀佩）', shortName: 'SDGs大富翁', requiresTreasureCode: false },
+  { id: 'station-2', order: 2, name: '扭蛋尋寶+小隊練習（玉華）', shortName: '扭蛋尋寶', requiresTreasureCode: false },
+  { id: 'station-3', order: 3, name: '擰一擰水乾了（八導）', shortName: '擰一擰水乾了', requiresTreasureCode: false },
+  { id: 'station-4', order: 4, name: '彩虹泡泡棒（雅文）', shortName: '彩虹泡泡棒', requiresTreasureCode: false },
+  { id: 'station-5', order: 5, name: '汽球不倒翁（雅文／世勳・星宿海）', shortName: '汽球不倒翁', requiresTreasureCode: false },
+  { id: 'station-6', order: 6, name: '泡泡接力賽_聯結之鑰（雯薰）', shortName: '泡泡接力賽', requiresTreasureCode: false }
 ];
 
 var EMBLEMS = ['龍', '虎', '鳳', '鷹', '狼', '熊', '鯊', '隼'];
@@ -285,8 +283,9 @@ function checkInTeam_(teamId, stationId) {
 function verifyTreasureCode_(stationId, code) {
   var station = getStations_().filter(function (s) { return s.id === stationId; })[0];
   if (!station) return { ok: false, reason: '找不到關卡' };
+  // 雨備關卡目前皆不需寶物 Code
   if (!station.requiresTreasureCode) return { ok: true };
-  if (String(code).trim().toUpperCase() !== String(station.treasureCode).toUpperCase()) {
+  if (String(code).trim().toUpperCase() !== String(station.treasureCode || '').toUpperCase()) {
     return { ok: false, reason: '寶物 Code 不正確' };
   }
   return { ok: true };

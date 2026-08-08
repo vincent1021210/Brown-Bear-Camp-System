@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  EVENT_ID,
+  EVENT_NAME,
+  STATION_DEFS,
+  TEAM_EMBLEMS,
+} from "./stations";
 import type {
   Attempt,
   AttemptStatus,
@@ -10,33 +16,7 @@ import type {
   TeamQrPayload,
 } from "./types";
 
-const EVENT_ID = "event-brown-bear-2026";
-const EVENT_NAME = "棕熊營闖關活動";
-const STORAGE_KEY = "brown-bear-camp-db-v1";
-const TREASURE_CODE = "BEAR2026";
-
-const STATION_DEFS = [
-  { order: 1, name: "龍門營地跳塔", shortName: "跳塔" },
-  { order: 2, name: "血跡尋寶", shortName: "尋寶" },
-  {
-    order: 3,
-    name: "創意鑰匙圈手作",
-    shortName: "鑰匙圈",
-    requiresTreasureCode: true,
-    treasureCode: TREASURE_CODE,
-  },
-  { order: 4, name: "神力布袋球積分賽", shortName: "布袋球" },
-  { order: 5, name: "植物書籤", shortName: "書籤" },
-  { order: 6, name: "蒙眼漫步", shortName: "漫步" },
-  { order: 7, name: "捲捲棒棒糖", shortName: "棒棒糖" },
-  { order: 8, name: "快問快答", shortName: "快問快答" },
-] as const;
-
-const EMBLEMS = ["龍", "虎", "鳳", "鷹", "狼", "熊", "鯊", "隼"];
-
-interface ClientDb {
-  attempts: Attempt[];
-}
+const STORAGE_KEY = "brown-bear-camp-db-v2-rain";
 
 function stations(): Station[] {
   return STATION_DEFS.map((def) => ({
@@ -45,17 +25,11 @@ function stations(): Station[] {
     shortName: def.shortName,
     order: def.order,
     eventId: EVENT_ID,
-    ...("requiresTreasureCode" in def && def.requiresTreasureCode
-      ? {
-          requiresTreasureCode: true,
-          treasureCode: TREASURE_CODE,
-        }
-      : {}),
   }));
 }
 
 function teams(): Team[] {
-  return EMBLEMS.map((emblem, index) => ({
+  return TEAM_EMBLEMS.map((emblem, index) => ({
     id: `team-${String(index + 1).padStart(2, "0")}`,
     name: `${emblem}小隊`,
     eventId: EVENT_ID,
@@ -69,6 +43,10 @@ function gameMasters() {
     name: `第${station.order}關關主`,
     stationId: station.id,
   }));
+}
+
+interface ClientDb {
+  attempts: Attempt[];
 }
 
 function readDb(): ClientDb {
@@ -136,7 +114,7 @@ export async function listBootstrap() {
     stations: Station[];
     gameMasters: Array<{ id: string; name: string; stationId: string }>;
   }>("bootstrap");
-  if (remote?.teams) return remote;
+  if (remote?.teams?.length && remote?.stations?.length) return remote;
 
   return {
     event: { id: EVENT_ID, name: EVENT_NAME },
@@ -249,7 +227,7 @@ export async function checkInTeam(params: {
       team,
       station,
       state,
-      requiresTreasureCode: Boolean(station.requiresTreasureCode),
+      requiresTreasureCode: false,
     };
   }
   return {
@@ -258,7 +236,7 @@ export async function checkInTeam(params: {
     team,
     station,
     state,
-    requiresTreasureCode: Boolean(station.requiresTreasureCode),
+    requiresTreasureCode: false,
   };
 }
 
@@ -271,13 +249,7 @@ export async function verifyTreasureCode(params: {
     code: params.code,
   });
   if (remote) return remote;
-
-  const station = stations().find((s) => s.id === params.stationId);
-  if (!station) return { ok: false, reason: "找不到關卡" };
-  if (!station.requiresTreasureCode) return { ok: true };
-  if (params.code.trim().toUpperCase() !== TREASURE_CODE) {
-    return { ok: false, reason: "寶物 Code 不正確" };
-  }
+  void params;
   return { ok: true };
 }
 
@@ -316,16 +288,6 @@ export async function recordAttempt(params: {
     station.id,
   );
   if (current === "pass") return { ok: false, reason: "已完成，不重複計算" };
-
-  if (station.requiresTreasureCode && params.status === "pass") {
-    const verified = await verifyTreasureCode({
-      stationId: station.id,
-      code: params.treasureCode ?? "",
-    });
-    if (!verified.ok) {
-      return { ok: false, reason: verified.reason ?? "寶物 Code 驗證失敗" };
-    }
-  }
 
   const attempt: Attempt = {
     id: crypto.randomUUID(),
