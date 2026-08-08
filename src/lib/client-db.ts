@@ -89,22 +89,101 @@ function getStationState(
   return normalizeStatus(related[0].status) ?? "pending";
 }
 
-function getGasUrl(): string | null {
-  const url = process.env.NEXT_PUBLIC_GAS_WEB_APP_URL;
-  return url ? url.replace(/\/$/, "") : null;
+let cachedGasUrl: string | null | undefined;
+
+async function resolveGasUrl(): Promise<string | null> {
+  if (cachedGasUrl !== undefined) return cachedGasUrl;
+
+  const fromEnv = process.env.NEXT_PUBLIC_GAS_WEB_APP_URL?.replace(/\/$/, "");
+  if (fromEnv) {
+    cachedGasUrl = fromEnv;
+    return cachedGasUrl;
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+      const res = await fetch(`${base}/gas-config.json`, { cache: "no-store" });
+      if (res.ok) {
+        const json = (await res.json()) as { gasWebAppUrl?: string };
+        const url = json.gasWebAppUrl?.replace(/\/$/, "") || null;
+        cachedGasUrl = url;
+        return cachedGasUrl;
+      }
+    } catch {
+      // ignore and fall through
+    }
+  }
+
+  cachedGasUrl = null;
+  return null;
 }
+
+// #region agent log
+function debugLog(
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown> = {},
+) {
+  fetch("http://127.0.0.1:7908/ingest/2d491511-48b4-4493-8ed2-49380a7c93af", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "d92e6d",
+    },
+    body: JSON.stringify({
+      sessionId: "d92e6d",
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => undefined);
+}
+// #endregion
 
 async function gasGet<T>(
   action: string,
   query: Record<string, string> = {},
 ): Promise<T | null> {
-  const base = getGasUrl();
-  if (!base) return null;
+  const base = await resolveGasUrl();
+  if (!base) {
+    // #region agent log
+    debugLog("A", "client-db.ts:gasGet", "no GAS url, local fallback", {
+      action,
+      query,
+    });
+    // #endregion
+    return null;
+  }
   const url = new URL(base);
   url.searchParams.set("action", action);
   for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  return (await res.json()) as T;
+  try {
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    const json = (await res.json()) as T;
+    // #region agent log
+    debugLog("B", "client-db.ts:gasGet", "GAS response", {
+      action,
+      query,
+      okHttp: res.ok,
+      status: res.status,
+      remoteKeys: json && typeof json === "object" ? Object.keys(json as object) : [],
+    });
+    // #endregion
+    return json;
+  } catch (err) {
+    // #region agent log
+    debugLog("B", "client-db.ts:gasGet", "GAS fetch failed", {
+      action,
+      query,
+      error: String(err),
+    });
+    // #endregion
+    throw err;
+  }
 }
 
 export async function listBootstrap() {
@@ -141,7 +220,19 @@ export async function getTeamProgress(teamId: string) {
     totalStations: number;
   }>("team", { teamId });
 
-  if (remote && !remote.error) return remote;
+  if (remote && !remote.error) {
+    // #region agent log
+    debugLog("C", "client-db.ts:getTeamProgress", "progress from GAS", {
+      teamId,
+      passCount: remote.passCount,
+      states: remote.progress?.map((p) => ({
+        stationId: p.stationId,
+        state: p.state,
+      })),
+    });
+    // #endregion
+    return remote;
+  }
 
   const team = teams().find((t) => t.id === teamId);
   if (!team) return null;
@@ -153,6 +244,15 @@ export async function getTeamProgress(teamId: string) {
     shortName: station.shortName,
     state: getStationState(db.attempts, team.eventId, team.id, station.id),
   }));
+  // #region agent log
+  debugLog("A", "client-db.ts:getTeamProgress", "progress from localStorage", {
+    teamId,
+    attemptCount: db.attempts.length,
+    storageKey: STORAGE_KEY,
+    states: progress.map((p) => ({ stationId: p.stationId, state: p.state })),
+    passCount: progress.filter((p) => p.state === "pass").length,
+  });
+  // #endregion
   return {
     event: { id: EVENT_ID, name: EVENT_NAME },
     team,
@@ -270,6 +370,16 @@ export async function recordAttempt(params: {
     treasureCode: params.treasureCode ?? "",
   });
   if (remote) {
+    // #region agent log
+    debugLog("B", "client-db.ts:recordAttempt", "complete via GAS", {
+      teamId: params.teamId,
+      stationId: params.stationId,
+      status: params.status,
+      ok: remote.ok,
+      reason: remote.reason ?? null,
+      attemptStatus: remote.attempt?.status ?? null,
+    });
+    // #endregion
     if (!remote.ok || !remote.attempt) {
       return { ok: false, reason: remote.reason ?? "紀錄失敗" };
     }
@@ -299,5 +409,14 @@ export async function recordAttempt(params: {
   };
   db.attempts.push(attempt);
   writeDb(db);
+  // #region agent log
+  debugLog("A", "client-db.ts:recordAttempt", "complete via localStorage", {
+    teamId: team.id,
+    stationId: station.id,
+    status: params.status,
+    attemptCount: db.attempts.length,
+    storageKey: STORAGE_KEY,
+  });
+  // #endregion
   return { ok: true, attempt };
 }

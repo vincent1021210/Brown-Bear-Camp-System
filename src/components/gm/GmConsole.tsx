@@ -157,6 +157,29 @@ export function GmConsole() {
         stationId: station.id,
         status,
       });
+      // #region agent log
+      fetch("http://127.0.0.1:7908/ingest/2d491511-48b4-4493-8ed2-49380a7c93af", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "d92e6d",
+        },
+        body: JSON.stringify({
+          sessionId: "d92e6d",
+          hypothesisId: "D",
+          location: "GmConsole.tsx:submit",
+          message: "GM submit result",
+          data: {
+            teamId: team.id,
+            stationId: station.id,
+            status,
+            ok: data.ok,
+            reason: data.ok ? null : data.reason,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => undefined);
+      // #endregion
       if (!data.ok) {
         setMessage(data.reason ?? "送出失敗");
         return;

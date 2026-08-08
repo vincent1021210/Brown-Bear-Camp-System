@@ -1,8 +1,8 @@
 # Google Apps Script 部署說明
 
-專案已寫入：https://script.google.com/home/projects/1cAMdi5hwkMLA5dKGdVR4wtya5mvelCQ1CuU5YKKSDBvMrY4PBHZgasNs/edit
+雨備專案已寫入：https://script.google.com/home/projects/1-0fCinA0-rqclSlVzAh8AjyPHsP3ekYHNCvRIClZRfkXctUqUcHrh87d/edit
 
-原始碼備份：`google-apps-script/Code.gs`
+原始碼備份：`google-apps-script/Code.gs`（以 `clasp push` 同步至 Apps Script 的 `程式碼.js`）
 
 ## 部署成網頁應用程式
 

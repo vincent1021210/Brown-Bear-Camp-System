@@ -43,3 +43,8 @@ next-env.d.ts
 
 # local event database
 /data/db.json
+
+# clasp sync copy (source of truth is Code.gs)
+/google-apps-script/程式碼.js
+/google-apps-script/appsscript.json
+/google-apps-script/.claspignore
