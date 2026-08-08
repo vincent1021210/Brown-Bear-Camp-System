@@ -420,3 +420,41 @@ export async function recordAttempt(params: {
   // #endregion
   return { ok: true, attempt };
 }
+
+/** 回復為未完成：清除該小隊該關所有判定紀錄 */
+export async function undoAttempt(params: {
+  teamId: string;
+  stationId: string;
+}): Promise<{ ok: true; removed: number } | { ok: false; reason: string }> {
+  const remote = await gasGet<{
+    ok: boolean;
+    reason?: string;
+    removed?: number;
+  }>("undo", {
+    teamId: params.teamId,
+    stationId: params.stationId,
+  });
+  if (remote) {
+    if (!remote.ok) {
+      return { ok: false, reason: remote.reason ?? "回復失敗" };
+    }
+    return { ok: true, removed: remote.removed ?? 0 };
+  }
+
+  const team = teams().find((t) => t.id === params.teamId);
+  const station = stations().find((s) => s.id === params.stationId);
+  if (!team || !station) return { ok: false, reason: "小隊或關卡不存在" };
+
+  const db = readDb();
+  const before = db.attempts.length;
+  db.attempts = db.attempts.filter(
+    (a) =>
+      !(
+        a.eventId === team.eventId &&
+        a.teamId === team.id &&
+        a.stationId === station.id
+      ),
+  );
+  writeDb(db);
+  return { ok: true, removed: before - db.attempts.length };
+}

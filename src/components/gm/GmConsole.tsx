@@ -9,6 +9,7 @@ import {
   lockStation,
   parseTeamQr,
   recordAttempt,
+  undoAttempt,
 } from "@/lib/client-db";
 import type { Station } from "@/lib/types";
 
@@ -198,6 +199,28 @@ export function GmConsole() {
     setMessage(null);
     setManualTeamId("");
     setStep("scan");
+  }
+
+  async function revertToIncomplete() {
+    if (!team || !station) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const data = await undoAttempt({
+        teamId: team.id,
+        stationId: station.id,
+      });
+      if (!data.ok) {
+        setMessage(data.reason ?? "回復失敗");
+        return;
+      }
+      setCanJudge(true);
+      setReason(null);
+      setMessage("已回復為未完成，可重新判定");
+      setStep("team");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!authReady) {
@@ -397,13 +420,23 @@ export function GmConsole() {
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={resetToScan}
-              className="rounded-xl bg-[#f0c674] px-4 py-3.5 font-semibold text-[#1a1205]"
-            >
-              掃描下一隊
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void revertToIncomplete()}
+                className="rounded-xl border border-[#f0c674]/55 bg-[#2a1520] px-4 py-3.5 font-semibold text-[#ffb4b4] disabled:opacity-50"
+              >
+                未完成
+              </button>
+              <button
+                type="button"
+                onClick={resetToScan}
+                className="rounded-xl bg-[#f0c674] px-4 py-3.5 font-semibold text-[#1a1205]"
+              >
+                掃描下一隊
+              </button>
+            </div>
           )}
 
           {message && <p className="text-center text-sm text-[#ffb4b4]">{message}</p>}
@@ -437,6 +470,14 @@ export function GmConsole() {
               </li>
             </ul>
           </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void revertToIncomplete()}
+            className="w-full rounded-xl border border-[#f0c674]/55 bg-[#2a1520] px-4 py-3.5 font-semibold text-[#ffb4b4] disabled:opacity-50"
+          >
+            未完成
+          </button>
           <button
             type="button"
             onClick={resetToScan}

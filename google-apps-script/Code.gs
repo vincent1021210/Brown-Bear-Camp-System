@@ -70,6 +70,9 @@ function handleRequest(e, method) {
     if (action === 'complete') {
       return json_(recordAttempt_(teamId, stationId, status, treasureCode));
     }
+    if (action === 'undo') {
+      return json_(undoAttempt_(teamId, stationId));
+    }
     if (action === 'reset') {
       return json_(resetDb_());
     }
@@ -77,7 +80,7 @@ function handleRequest(e, method) {
     return json_({
       ok: true,
       service: 'Brown Bear Camp System',
-      hint: 'Use action=bootstrap|team|lock|checkIn|treasure|complete|reset'
+      hint: 'Use action=bootstrap|team|lock|checkIn|treasure|complete|undo|reset'
     });
   } catch (err) {
     return json_({ ok: false, error: String(err) }, 500);
@@ -326,6 +329,36 @@ function recordAttempt_(teamId, stationId, status, treasureCode) {
   ]);
 
   return { ok: true, attempt: attempt };
+}
+
+function undoAttempt_(teamId, stationId) {
+  var team = getTeams_().filter(function (t) { return t.id === teamId; })[0];
+  var station = getStations_().filter(function (s) { return s.id === stationId; })[0];
+  if (!team || !station) return { ok: false, reason: '小隊或關卡不存在' };
+
+  var sheet = getAttemptsSheet_();
+  var values = sheet.getDataRange().getValues();
+  var removed = 0;
+  // 由下往上刪，避免列號位移
+  for (var i = values.length - 1; i >= 1; i--) {
+    var r = values[i];
+    if (
+      String(r[1]) === team.eventId &&
+      String(r[2]) === team.id &&
+      String(r[3]) === station.id
+    ) {
+      sheet.deleteRow(i + 1);
+      removed++;
+    }
+  }
+
+  return {
+    ok: true,
+    removed: removed,
+    team: team,
+    station: station,
+    state: 'pending'
+  };
 }
 
 function resetDb_() {
