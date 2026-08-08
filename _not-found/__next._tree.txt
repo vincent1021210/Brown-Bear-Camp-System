@@ -1,0 +1,4 @@
+:HL["/Brown-Bear-Camp-System/_next/static/chunks/2l4vtt-890u81.css","style"]
+:HL["/Brown-Bear-Camp-System/_next/static/chunks/2xl5rqh6gserh.css","style"]
+:HL["/Brown-Bear-Camp-System/_next/static/chunks/0cb1_gq9t1dnm.css","style"]
+0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"/_not-found","param":null,"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}},"staleTime":300,"buildId":"gM_SCzCZK12cU3B9l57Mz"}
